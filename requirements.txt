@@ -4,4 +4,11 @@ sqlalchemy
 psycopg2-binary
 pydantic
 pydantic-settings
-python-dotenv
+python-jose
+passlib
+bcrypt
+requests
+pika
+pytest
+httpx
+email-validator
