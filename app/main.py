@@ -10,9 +10,12 @@ Base.metadata.create_all(bind=engine)
 # Cria a instância principal da aplicação
 app = FastAPI(
     title="FACOFFEE Users Service",
-    version="1.0.0"
+    version="1.0.0",
+    response_model_by_alias=True,
 )
 
-# Ativa e injeta as rotas de usuário na aplicação principal
+# /users  -> testes diretos na porta 3001
+# /api/users -> chamadas via gateway (http://localhost:8000/api/users)
 app.include_router(user_router)
+app.include_router(user_router, prefix="/api")
 

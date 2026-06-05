@@ -1,7 +1,10 @@
+from math import ceil
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.repositories.user_repository import UserRepository
+from app.schemas.user_schema import PageMetadata, UserPage, UserResponse
 from app.integrations.keycloack_client import KeycloakClient
 from app.integrations.rabbitmq_client import RabbitMQClient
 
@@ -9,7 +12,7 @@ from app.integrations.rabbitmq_client import RabbitMQClient
 Escopo funcional: 
 
 - Criar usuário no domínio e no Keycloak.   - ✅FEITO
-- Listar usuários com filtros e paginação.  - ❌FALTA AJUSTAR
+- Listar usuários com filtros e paginação.  - ✅FEITO
 - Buscar usuário por identificador.         - ✅FEITO
 - Atualizar dados básicos do usuário.       - ❌FALTA AJUSTAR
 - Desativar usuário logicamente.            - ✅FEITO
@@ -53,8 +56,29 @@ class UserService:
     # =========================================================
     # LISTAR USUÁRIOS
     # =========================================================
-    def lista_de_usuarios(self, db: Session):
-        return self.repository.lista_todos_os_usuarios(db)
+    def lista_de_usuarios(
+        self,
+        db: Session,
+        status: str | None = None,
+        role: str | None = None,
+        page: int = 0,
+        size: int = 20,
+    ) -> UserPage:
+        items, total = self.repository.lista_usuarios(
+            db, status=status, role=role, page=page, size=size
+        )
+
+        total_pages = ceil(total / size) if size > 0 else 0
+
+        return UserPage(
+            items=[UserResponse.model_validate(user) for user in items],
+            page=PageMetadata(
+                page=page,
+                size=size,
+                totalElements=total,
+                totalPages=total_pages,
+            ),
+        )
 
     # =========================================================
     # BUSCAR POR ID
