@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -15,7 +15,7 @@ class UserUpdate(BaseModel):
 
 
 class RoleUpdate(BaseModel):
-    roles: List[str]
+    roles: List[Literal["MANAGER", "PARTICIPANT"]] = Field(min_length=1)
 
 
 class UserResponse(BaseModel):

@@ -58,3 +58,10 @@ class UserRepository:
         db.commit()
         db.refresh(user)
         return user
+
+    def atualiza_papeis_usuario(self, db: Session, user, roles: list[str]):
+        user.roles = ",".join(roles)
+        db.commit()
+        db.refresh(user)
+        return user
+    
