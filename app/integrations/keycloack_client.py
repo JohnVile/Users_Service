@@ -14,6 +14,7 @@ class KeycloakClient:
         self.realm = settings.KEYCLOAK_REALM
         self.client_id = settings.KEYCLOAK_CLIENT_ID
         self.client_secret = settings.KEYCLOAK_CLIENT_SECRET
+        self._oidc_config = None
 
     # =========================================================
     # URLS
@@ -28,9 +29,32 @@ class KeycloakClient:
     def users_url(self):
         return f"{self.server_url}/admin/realms/{self.realm}/users"
 
+    def get_oidc_config(self):
+        if self._oidc_config is None:
+            discovery_url = (
+                f"{self.server_url}/realms/{self.realm}"
+                "/.well-known/openid-configuration"
+            )
+            response = requests.get(discovery_url, timeout=5)
+            response.raise_for_status()
+            self._oidc_config = response.json()
+        return self._oidc_config
+
+    @property
+    def issuer(self):
+        config = self.get_oidc_config()
+        issuer = config["issuer"]
+
+        # Tokens obtidos em localhost:8080 trazem iss com localhost, mesmo
+        # quando o serviço acessa o Keycloak via host.docker.internal.
+        if "host.docker.internal" in issuer:
+            return issuer.replace("host.docker.internal", "localhost")
+
+        return issuer
+
     @property
     def certs_url(self):
-        return f"{self.server_url}/realms/{self.realm}/protocol/openid-connect/certs"
+        return self.get_oidc_config()["jwks_uri"]
 
     # =========================================================
     # ADMIN TOKEN
@@ -59,12 +83,45 @@ class KeycloakClient:
     # =========================================================
 
     def validate_token(self, credentials: HTTPAuthorizationCredentials):
+        token = credentials.credentials
+
         try:
-            token = credentials.credentials
-            payload = jwt.get_unverified_claims(token)
+            jwks_response = requests.get(self.certs_url, timeout=5)
+            jwks_response.raise_for_status()
+            jwks = jwks_response.json()
+
+            unverified_header = jwt.get_unverified_header(token)
+            rsa_key = {}
+
+            for key in jwks.get("keys", []):
+                if key.get("kid") == unverified_header.get("kid"):
+                    rsa_key = {
+                        "kty": key["kty"],
+                        "kid": key["kid"],
+                        "use": key["use"],
+                        "n": key["n"],
+                        "e": key["e"],
+                    }
+                    break
+
+            if not rsa_key:
+                raise HTTPException(status_code=401, detail="Token inválido")
+
+            payload = jwt.decode(
+                token,
+                rsa_key,
+                algorithms=["RS256"],
+                issuer=self.issuer,
+                options={"verify_aud": False},
+            )
             return payload
         except JWTError:
             raise HTTPException(status_code=401, detail="Token inválido")
+        except requests.RequestException:
+            raise HTTPException(
+                status_code=503,
+                detail="Serviço de autenticação indisponível",
+            )
 
     # =========================================================
     # EXTRAIR ROLES
