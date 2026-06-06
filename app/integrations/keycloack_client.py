@@ -165,10 +165,72 @@ class KeycloakClient:
     # =========================================================
     # ATUALIZAR ROLES
     # =========================================================
+    def update_roles(self, email: str, roles: list[str]):
 
-    def update_roles(self, user_id, roles):
-        # TODO: implementar
-        pass
+        admin_token = self.get_admin_token()
+        headers = {
+            "Authorization": f"Bearer {admin_token}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.get(
+            self.users_url,
+            headers=headers,
+            params={"email": email, "exact": True}
+        )
+
+        users = response.json()
+        if not users:
+            raise HTTPException(
+                status_code=404, 
+                detail="Usuário não encontrado no Keycloak"
+            )
+        keycloak_user_id = users[0]["id"]
+
+
+        # 2 - busca os objetos de role no Keycloak para enviar na atribuição
+        role_objects = []
+        for role in roles:
+            role_response = requests.get(
+                f"{self.server_url}/admin/realms/{self.realm}/roles/{role}",
+                headers=headers
+            )
+            role_objects.append(role_response.json())
+        
+        # 3 - remove role atual
+        current_roles_response = requests.get(
+            f"{self.users_url}/{keycloak_user_id}/role-mappings/realm",
+            headers=headers
+        )
+
+        if current_roles_response.status_code == 200:
+            current_roles = current_roles_response.json()
+            if current_roles:
+                delete_response = requests.delete(
+                    f"{self.users_url}/{keycloak_user_id}/role-mappings/realm",
+                    headers=headers,
+                    json=current_roles
+                )
+                if delete_response.status_code not in [200, 204]:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Falha ao remover roles atuais no Keycloak: {delete_response.status_code}"
+                    )
+                print(f"[Keycloak] Roles atuais removidas do usuário {email}")
+
+        # 4 - atribui novas roles
+        assign_response = requests.post(
+            f"{self.users_url}/{keycloak_user_id}/role-mappings/realm",
+            headers=headers,
+            json=role_objects
+        )
+
+        if assign_response.status_code not in [200, 204]:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Falha ao atualizar roles no Keycloak:{assign_response.text}"
+            )
+        
 
     # =========================================================
     # DELETAR USUÁRIO

@@ -1,10 +1,11 @@
+from http.client import HTTPException
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import require_manager
-from app.schemas.user_schema import UserCreate, UserPage, UserResponse
+from app.schemas.user_schema import RoleUpdate, UserCreate, UserPage, UserResponse
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -35,4 +36,20 @@ def lista_usuarios(
 # @router.get("/{user_id}")
 # @router.patch("/{user_id}")
 # @router.delete("/{user_id}")
-# @router.put("/{user_id}/roles")
+
+@router.put("/{user_id}/roles", response_model=UserResponse)
+def atualiza_papeis_usuario(
+    user_id: str,
+    data: RoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager),
+):  
+    service = UserService()
+
+    return service.atualiza_papeis_usuario(
+        db,
+        user_id, 
+        data.roles,
+        current_user_id=current_user["sub"],
+    )
+    

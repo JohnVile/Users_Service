@@ -111,3 +111,32 @@ class UserService:
         db.commit()
         self.publisher.publish_user_deactivated(user_id)
         return usuario_existente
+    
+    # =========================================================
+    # ATUALIZAR PAPÉIS DO USUÁRIO
+    # =========================================================
+    def atualiza_papeis_usuario(
+            self, 
+            db: Session, 
+            user_id: str, 
+            roles: list[str], 
+            current_user_id: str
+        ):
+
+        # gerentes não podem remover seu próprio papel de MANAGER
+        if user_id == current_user_id and "MANAGER" not in roles:
+            raise HTTPException(
+                status_code=403,
+                detail="Gerentes não podem remover seu próprio papel de MANAGER"
+            )
+        
+        usuario_existente = self.obter_usuario(db, user_id)
+        
+        usuario_atualizado = self.repository.atualiza_papeis_usuario(db, usuario_existente, roles)
+
+        try:
+            self.keycloak.update_roles(usuario_existente.email, roles)
+        except Exception as e:
+            print(f"[Keycloak] Falha ao atualizar papéis do usuário: {e}")
+            
+        return usuario_atualizado
