@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Literal
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -7,11 +7,17 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 class UserCreate(BaseModel):
     name: str = Field(min_length=3)
     email: EmailStr
-    roles: Optional[List[str]] = ["PARTICIPANT"]
+    roles: List[Literal["MANAGER", "PARTICIPANT"]] = ["PARTICIPANT"]
 
 
 class UserUpdate(BaseModel):
-    name: Optional[str] = None
+    # api-docs exige minLength: 3 para name
+    name: Optional[str] = Field(None, min_length=3)
+
+
+class DeactivateRequest(BaseModel):
+    # Corresponde a DeactivateUserRequest do api-docs
+    reason: str = Field(min_length=3)
 
 
 class RoleUpdate(BaseModel):
@@ -27,16 +33,13 @@ class UserResponse(BaseModel):
     status: str
     roles: List[str]
     created_at: datetime = Field(serialization_alias="createdAt")
-    updated_at: Optional[datetime] = Field(
-        default=None, serialization_alias="updatedAt"
-    )
-    deactivated_at: Optional[datetime] = Field(
-        default=None, serialization_alias="deactivatedAt"
-    )
+    updated_at: Optional[datetime] = Field(default=None, serialization_alias="updatedAt")
+    deactivated_at: Optional[datetime] = Field(default=None, serialization_alias="deactivatedAt")
 
     @field_validator("roles", mode="before")
     @classmethod
     def parse_roles(cls, v):
+        # Converte "MANAGER,PARTICIPANT" (str do banco) -> ["MANAGER", "PARTICIPANT"]
         if isinstance(v, str):
             return [r.strip() for r in v.split(",") if r.strip()]
         return v

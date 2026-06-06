@@ -1,23 +1,14 @@
+from datetime import datetime, timezone
 from math import ceil
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.repositories.user_repository import UserRepository
-from app.schemas.user_schema import PageMetadata, UserPage, UserResponse
-from app.integrations.keycloack_client import KeycloakClient
+from app.integrations.keycloak_client import KeycloakClient
 from app.integrations.rabbitmq_client import RabbitMQClient
+from app.repositories.user_repository import UserRepository
+from app.schemas.user_schema import PageMetadata, UserPage, UserResponse, UserUpdate
 
-'''
-Escopo funcional: 
-
-- Criar usuário no domínio e no Keycloak.   - ✅FEITO
-- Listar usuários com filtros e paginação.  - ✅FEITO
-- Buscar usuário por identificador.         - ✅FEITO
-- Atualizar dados básicos do usuário.       - ❌FALTA AJUSTAR
-- Desativar usuário logicamente.            - ✅FEITO
-- Substituir papéis (`roles`) do usuário.   - ❌FALTA AJUSTAR
-'''
 
 class UserService:
 
@@ -27,25 +18,35 @@ class UserService:
         self.publisher = RabbitMQClient()
 
     # =========================================================
-    # CRIAR USUÁRIO
+    # HELPERS INTERNOS
     # =========================================================
+
+    def _verificar_acesso_self_ou_manager(self, usuario, current_user: dict) -> None:
+        """
+        Lança 403 se o usuário atual não é MANAGER e não é o dono do recurso.
+        A comparação de 'self' usa e-mail, pois o 'sub' do JWT (UUID Keycloak)
+        difere do ID de domínio (usr_xxx).
+        """
+        if "MANAGER" in current_user.get("roles", []):
+            return
+        if current_user.get("email") != usuario.email:
+            raise HTTPException(status_code=403, detail="Acesso negado")
+
+    # =========================================================
+    # CRIAR USUÁRIO — POST /users
+    # =========================================================
+
     def criacao_de_usuario(self, db: Session, user_data):
-        usuario_existente = self.repository.busca_usuario_por_email(db, user_data.email)
+        if self.repository.busca_usuario_por_email(db, user_data.email):
+            raise HTTPException(status_code=409, detail="Esse email já está em uso")
 
-        if usuario_existente:
-            raise HTTPException(
-                status_code=409,
-                detail="Esse email já está em uso"
-            )
-
-        # Converte roles de list para string para salvar no banco
         data = user_data.model_dump()
         data["roles"] = ",".join(data["roles"])
 
-        # Salva no banco local
         usuario_criado = self.repository.cria_usuario(db, data)
 
-        # Cria no Keycloak (se falhar, loga mas não desfaz o cadastro local por ora)
+        # Registra no Keycloak com as roles iniciais
+        # Se falhar, o cadastro local é mantido; o admin pode recriar manualmente.
         try:
             self.keycloak.create_user(user_data.model_dump())
         except Exception as e:
@@ -54,8 +55,9 @@ class UserService:
         return usuario_criado
 
     # =========================================================
-    # LISTAR USUÁRIOS
+    # LISTAR USUÁRIOS — GET /users
     # =========================================================
+
     def lista_de_usuarios(
         self,
         db: Session,
@@ -67,11 +69,9 @@ class UserService:
         items, total = self.repository.lista_usuarios(
             db, status=status, role=role, page=page, size=size
         )
-
         total_pages = ceil(total / size) if size > 0 else 0
-
         return UserPage(
-            items=[UserResponse.model_validate(user) for user in items],
+            items=[UserResponse.model_validate(u) for u in items],
             page=PageMetadata(
                 page=page,
                 size=size,
@@ -81,62 +81,91 @@ class UserService:
         )
 
     # =========================================================
-    # BUSCAR POR ID
+    # BUSCAR POR ID — GET /users/{userId}
     # =========================================================
-    def obter_usuario(self, db: Session, user_id: str):
-        usuario_existente = self.repository.busca_usuario_por_id(db, user_id)
-        if not usuario_existente:
-            raise HTTPException(
-                status_code=404,
-                detail="Usuário não encontrado"
-            )
-        return usuario_existente
+
+    def obter_usuario(self, db: Session, user_id: str, current_user: dict = None):
+        usuario = self.repository.busca_usuario_por_id(db, user_id)
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+        if current_user is not None:
+            self._verificar_acesso_self_ou_manager(usuario, current_user)
+
+        return usuario
 
     # =========================================================
-    # DESATIVAR USUÁRIO
+    # ATUALIZAR DADOS — PATCH /users/{userId}
     # =========================================================
-    def desativar_usuario(self, db: Session, user_id: str):
-        usuario_existente = self.obter_usuario(db, user_id)
-        if not usuario_existente:
-            raise HTTPException(
-                status_code=404,
-                detail="Usuário não encontrado"
-            )
-        if usuario_existente.status == "INACTIVE":
-            raise HTTPException(
-                status_code=400,
-                detail="Usuário já está inativo"
-            )
-        usuario_existente.status = "INACTIVE"
-        db.commit()
-        self.publisher.publish_user_deactivated(user_id)
-        return usuario_existente
-    
+
+    # def atualizar_usuario
+
     # =========================================================
-    # ATUALIZAR PAPÉIS DO USUÁRIO
+    # DESATIVAR USUÁRIO — DELETE /users/{userId}
     # =========================================================
+
+    def desativar_usuario(
+        self, db: Session, user_id: str, reason: str, current_user: dict
+    ):
+        usuario = self.obter_usuario(db, user_id, current_user)
+
+        if usuario.status == "INACTIVE":
+            raise HTTPException(status_code=409, detail="Usuário já está inativo")
+
+        data = {
+            "status": "INACTIVE",
+            "deactivated_at": datetime.now(timezone.utc),
+        }
+        usuario_atualizado = self.repository.atualiza_dados_do_usuario(
+            db, usuario, data
+        )
+
+        # Desabilita conta no Keycloak
+        try:
+            self.keycloak.disable_user(usuario.email)
+        except Exception as e:
+            print(f"[Keycloak] Falha ao desabilitar usuário: {e}")
+
+        # Publica evento com envelope completo (async-docs.yaml)
+        self.publisher.publish_user_deactivated(user_id, reason)
+
+        return usuario_atualizado
+
+    # =========================================================
+    # ATUALIZAR PAPÉIS — PUT /users/{userId}/roles
+    # =========================================================
+
     def atualiza_papeis_usuario(
-            self, 
-            db: Session, 
-            user_id: str, 
-            roles: list[str], 
-            current_user_id: str
+        self,
+        db: Session,
+        user_id: str,
+        roles: list[str],
+        current_user: dict,
+    ):
+        # Proteção: MANAGER não pode remover o próprio papel de MANAGER.
+        # Usa e-mail para correlacionar JWT com registro de domínio.
+        current_domain_user = self.repository.busca_usuario_por_email(
+            db, current_user.get("email", "")
+        )
+        if (
+            current_domain_user
+            and current_domain_user.id == user_id
+            and "MANAGER" not in roles
         ):
-
-        # gerentes não podem remover seu próprio papel de MANAGER
-        if user_id == current_user_id and "MANAGER" not in roles:
             raise HTTPException(
                 status_code=403,
-                detail="Gerentes não podem remover seu próprio papel de MANAGER"
+                detail="Gerentes não podem remover seu próprio papel de MANAGER",
             )
-        
-        usuario_existente = self.obter_usuario(db, user_id)
-        
-        usuario_atualizado = self.repository.atualiza_papeis_usuario(db, usuario_existente, roles)
 
+        usuario = self.obter_usuario(db, user_id)
+        usuario_atualizado = self.repository.atualiza_papeis_usuario(
+            db, usuario, roles
+        )
+
+        # Reflete as novas roles no Keycloak
         try:
-            self.keycloak.update_roles(usuario_existente.email, roles)
+            self.keycloak.update_roles(usuario.email, roles)
         except Exception as e:
-            print(f"[Keycloak] Falha ao atualizar papéis do usuário: {e}")
-            
+            print(f"[Keycloak] Falha ao atualizar papéis: {e}")
+
         return usuario_atualizado
