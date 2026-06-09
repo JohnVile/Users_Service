@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from app.models.user_model import User
 
-
 class UserRepository:
 
     def cria_usuario(self, db: Session, user_data):
