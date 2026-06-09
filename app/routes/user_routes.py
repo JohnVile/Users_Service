@@ -1,10 +1,10 @@
+from http.client import HTTPException
 from typing import Literal, Optional
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import require_manager, require_self_or_manager
+from app.core.security import require_manager
 from app.schemas.user_schema import RoleUpdate, UserCreate, UserPage, UserResponse
 from app.services.user_service import UserService
 
@@ -32,20 +32,10 @@ def lista_usuarios(
     )
 
 
-@router.get("/{user_id}", response_model=UserResponse)
-def obter_usuario_por_id(
-    user_id: str,
-    db: Session = Depends(get_db),
-    _current_user=Depends(require_self_or_manager),
-):
-    service = UserService()
-    return service.obter_usuario(db, user_id)
-
-
 # Other routes (to be implemented):
+# @router.get("/{user_id}")
 # @router.patch("/{user_id}")
 # @router.delete("/{user_id}")
-
 
 @router.put("/{user_id}/roles", response_model=UserResponse)
 def atualiza_papeis_usuario(
@@ -53,12 +43,13 @@ def atualiza_papeis_usuario(
     data: RoleUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_manager),
-):
+):  
     service = UserService()
 
     return service.atualiza_papeis_usuario(
         db,
-        user_id,
+        user_id, 
         data.roles,
         current_user_id=current_user["sub"],
     )
+    

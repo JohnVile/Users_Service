@@ -13,7 +13,7 @@ Escopo funcional:
 
 - Criar usuário no domínio e no Keycloak.   - ✅FEITO
 - Listar usuários com filtros e paginação.  - ✅FEITO
-- Buscar usuário por identificador.         - ✅FEITO 
+- Buscar usuário por identificador.         - ✅FEITO
 - Atualizar dados básicos do usuário.       - ❌FALTA AJUSTAR
 - Desativar usuário logicamente.            - ✅FEITO
 - Substituir papéis (`roles`) do usuário.   - ❌FALTA AJUSTAR
