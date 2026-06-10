@@ -40,7 +40,14 @@ def lista_usuarios(
 
 # @router.get("/{user_id}", response_model=UserResponse)
 
-# @router.patch("/{user_id}", response_model=UserResponse)
+@router.patch("/{user_id}", response_model=UserResponse)
+def atualizar_usuario(
+    user_id: str,
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_self_or_manager),
+):
+    return UserService().atualizar_dados_usuario(db, user_id, data, current_user)
 
 
 @router.delete("/{user_id}", response_model=UserResponse)

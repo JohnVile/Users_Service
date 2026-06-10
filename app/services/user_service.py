@@ -99,8 +99,15 @@ class UserService:
     # =========================================================
     # ATUALIZAR DADOS — PATCH /users/{userId}
     # =========================================================
+    def atualizar_dados_usuario(
+            self, db: Session, user_id: str, user_data: UserUpdate, current_user: dict
+    ):
+        usuario = self.obter_usuario(db, user_id, current_user)
 
-    # def atualizar_usuario
+        data = {k: v for k, v in user_data.model_dump().items() if v is not None}
+        if not data:
+            return usuario  # Sem alterações
+        return self.repository.atualiza_dados_do_usuario(db, usuario, data)
 
     # =========================================================
     # DESATIVAR USUÁRIO — DELETE /users/{userId}
