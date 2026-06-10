@@ -131,7 +131,63 @@ class TestAutorizacaoDeleteUser:
 
         assert resp.status_code == 403
 
+
+
 # ─── PUT /users/{userId}/roles ───────────────────────────────────────────────
 # Verificar quem pode alterar papéis.
 # Verificar se tem outras questões de autorização no doc API
 
+class TestAutorizacaoAtualizaPapeis:
+
+    # --- Acesso PERMITIDO ---
+
+    def test_manager_pode_alterar_roles_de_outro_usuario(
+            self, client_manager, criar_usuario):
+        """MANAGER consegue alterar roles de outro usuário — retorna 200."""
+        # Criar um usuário para ser alterado
+        usuario = criar_usuario(email="qualquer@test.com")
+        
+        # Usar client_manager diretamente (sem chamar como função)
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        assert response.status_code == 200
+
+    # --- Acesso NEGADO ---
+
+    def test_participant_nao_pode_alterar_roles(
+            self, client_participant, criar_usuario):
+        """PARTICIPANT não pode alterar roles — retorna 403."""
+        usuario = criar_usuario(email="alguem@test.com")
+        
+        response = client_participant.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        assert response.status_code == 403
+
+    
+    def test_participant_nao_pode_alterar_proprio_role(
+            self, client_participant, criar_usuario):
+        """PARTICIPANT não pode alterar nem seu próprio role — retorna 403."""
+        # Criar usuário com o mesmo email do PARTICIPANT_PAYLOAD
+        usuario = criar_usuario(email="participant@test.com")
+        
+        response = client_participant.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        assert response.status_code == 403
+    
+
+    def test_sem_token_retorna_401(
+            self, client_sem_token, criar_usuario):
+        """Requisição sem token deve ser negada — retorna 401."""
+        usuario = criar_usuario()
+        
+        response = client_sem_token.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        assert response.status_code == 401

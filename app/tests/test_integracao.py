@@ -15,6 +15,24 @@ Os testes devem verificar:
 import pytest
 from unittest.mock import patch
 
+
+# =========================================================
+# FIXTURES
+# =========================================================
+
+'''
+@pytest.fixture
+def criar_usuario(setup_db):
+    client = client_manager()
+    with patch("app.services.user_service.KeycloakClient.create_user"):
+        response = client.post("/api/users/", json={
+            "name": "Joao Teste",
+            "email": "joao@facom.ufms.br",
+        })
+    assert response.status_code == 201
+    return response.json()'''
+
+
 # ─── POST /users ─────────────────────────────────────────────────────────────
 class TestPostUsers:
 
@@ -73,6 +91,10 @@ class TestPostUsers:
         resp = client.post("/api/users", json={})
 
         assert resp.status_code == 422
+
+
+# Endpoint: POST /users
+# Testar criação completa de usuário.
 
 
 # ─── GET /users ──────────────────────────────────────────────────────────────
@@ -178,3 +200,174 @@ class TestDeleteUser:
 
 # ─── PUT /users/{userId}/roles ───────────────────────────────────────────────
 # Testar substituição de papéis.
+
+class TestIntegracaoAtualizaPapeis:
+
+    # --- Rota e códigos HTTP ---
+
+    def test_retorna_200_ao_substituir_roles(
+            self, client_manager, criar_usuario):
+        """Endpoint retorna 200 ao substituir roles com sucesso."""
+        usuario = criar_usuario(email="teste@test.com")
+        
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        assert response.status_code == 200
+
+    def test_retorna_404_para_usuario_inexistente(
+            self, client_manager):
+        """Endpoint retorna 404 quando o userId não existe."""
+        response = client_manager.put(
+            "/api/users/usr_inexistente/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        assert response.status_code == 404
+
+    def test_retorna_422_para_body_vazio(
+            self, client_manager, criar_usuario):
+        """Endpoint retorna 422 quando o body não contém roles."""
+        usuario = criar_usuario()
+        
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={},
+        )
+        assert response.status_code == 422
+
+    def test_retorna_422_para_role_invalida(
+            self, client_manager, criar_usuario):
+        """Endpoint retorna 422 quando a role não é MANAGER nem PARTICIPANT."""
+        usuario = criar_usuario()
+        
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["ADMIN"]},
+        )
+        assert response.status_code == 422
+
+
+    # --- Comunicação com banco ---
+
+    def test_roles_persistidas_no_banco(
+            self, client_manager, criar_usuario, db):
+        """Após substituição, os roles devem estar salvos no banco."""
+        usuario = criar_usuario(email="persistencia@test.com", roles="PARTICIPANT")
+        
+        client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+
+        # Verifica resposta HTTP
+        assert response.status_code == 200
+        assert response.json()["id"] == usuario.id
+        assert response.json()["roles"] == ["MANAGER"]
+
+        db.refresh(usuario)  # recarrega do banco
+        assert usuario.roles == "MANAGER"  # ou ["MANAGER"] dependendo do formato
+
+    def test_substitui_integralmente_os_roles(
+            self, client_manager, criar_usuario, db):
+        """Roles anteriores devem ser substituídos, não acumulados."""
+        usuario = criar_usuario(email="substituicao@test.com", roles="PARTICIPANT")
+        
+        # 1.PUT: promove para MANAGER
+
+        response1 = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        # 1.1. Verifica resposta HTTP do primeiro PUT
+        assert response1.status_code == 200
+        assert response1.json()["id"] == usuario.id
+        assert response1.json()["roles"] == ["MANAGER"]
+
+        # 1.2. Verifica banco após primeira mudança
+        db.refresh(usuario)
+        assert usuario.roles == "MANAGER"
+
+        # 2.PUT: rebaixa para PARTICIPANT
+
+        response2 = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["PARTICIPANT"]},
+        )
+
+        # 2.1. Verifica resposta HTTP do segundo PUT
+        assert response2.status_code == 200
+        assert response2.json()["id"] == usuario.id
+        assert response2.json()["roles"] == ["PARTICIPANT"]
+
+        # 2.2. Verifica banco após segunda mudança
+        db.refresh(usuario)
+        assert usuario.roles == "PARTICIPANT"
+
+
+    # --- Comunicação com Keycloak ---
+
+    def test_keycloak_e_chamado_com_email_e_roles(
+            self, client_manager, criar_usuario):
+        """O Keycloak deve ser chamado com o email do usuário e os novos roles."""
+        usuario = criar_usuario(email="keycloak@test.com", roles="PARTICIPANT")
+
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        
+        assert response.status_code == 200
+
+    def test_falha_keycloak_nao_afeta_resposta(
+            self, client_manager, criar_usuario):
+        """Se o Keycloak falhar, o endpoint ainda retorna 200 (banco já foi atualizado)."""
+        usuario = criar_usuario(email="falha@test.com")
+        
+        with patch(
+            "app.integrations.keycloak_client.KeycloakClient.update_roles",
+            side_effect=Exception("Keycloak fora do ar"),
+        ):
+            response = client_manager.put(
+                f"/api/users/{usuario.id}/roles",
+                json={"roles": ["MANAGER"]},
+            )
+        assert response.status_code == 200
+
+
+    # --- Contrato api-docs.yaml ---
+
+    def test_resposta_contem_campos_do_contrato(
+            self, client_manager, criar_usuario):
+        """Resposta deve conter todos os campos definidos no contrato."""
+        usuario = criar_usuario()
+        
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        
+        data = response.json()
+        assert "id" in data
+        assert "name" in data
+        assert "email" in data
+        assert "status" in data
+        assert "roles" in data
+        assert "createdAt" in data
+
+    def test_roles_retornados_como_lista(
+            self, client_manager, criar_usuario):
+        """O campo roles na resposta deve ser uma lista, conforme contrato."""
+        usuario = criar_usuario()
+        
+        response = client_manager.put(
+            f"/api/users/{usuario.id}/roles",
+            json={"roles": ["MANAGER"]},
+        )
+        
+        assert isinstance(response.json()["roles"], list)

@@ -12,4 +12,5 @@ pika
 pytest
 pytest-html
 pytest-cov
-httpx
+pytest-env
+httpx2
