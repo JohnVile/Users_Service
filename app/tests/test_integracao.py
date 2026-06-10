@@ -98,7 +98,129 @@ class TestPostUsers:
 
 
 # ─── GET /users ──────────────────────────────────────────────────────────────
-# Testar listagem, filtros e paginação.
+class TestListaUsuariosIntegracao:
+
+    def test_manager_lista_usuarios_retorna_200_com_contrato_correto(
+        self, client_manager, criar_usuario
+    ):
+        """MANAGER listando usuários deve retornar 200 com items e metadados de paginação."""
+        usuario = criar_usuario(name="Maria Silva", email="maria@test.com")
+
+        resp = client_manager.get("/api/users")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "items" in body
+        assert "page" in body
+        assert len(body["items"]) == 1
+        assert body["items"][0]["id"] == usuario.id
+        assert body["items"][0]["name"] == "Maria Silva"
+        assert body["page"]["page"] == 0
+        assert body["page"]["size"] == 20
+        assert body["page"]["totalElements"] == 1
+        assert body["page"]["totalPages"] == 1
+
+    def test_listagem_vazia_retorna_items_vazio(self, client_manager):
+        """Sem usuários cadastrados, items deve ser uma lista vazia."""
+        resp = client_manager.get("/api/users")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["items"] == []
+        assert body["page"]["totalElements"] == 0
+        assert body["page"]["totalPages"] == 0
+
+    def test_filtro_por_status_active(self, client_manager, criar_usuario):
+        """Filtro status=ACTIVE deve retornar apenas usuários ativos."""
+        ativo = criar_usuario(email="ativo@test.com", status="ACTIVE")
+        criar_usuario(email="inativo@test.com", status="INACTIVE")
+
+        resp = client_manager.get("/api/users", params={"status": "ACTIVE"})
+
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert ativo.id in ids
+        assert len(ids) == 1
+
+    def test_filtro_por_status_inactive(self, client_manager, criar_usuario):
+        """Filtro status=INACTIVE deve retornar apenas usuários inativos."""
+        criar_usuario(email="ativo@test.com", status="ACTIVE")
+        inativo = criar_usuario(email="inativo@test.com", status="INACTIVE")
+
+        resp = client_manager.get("/api/users", params={"status": "INACTIVE"})
+
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert inativo.id in ids
+        assert len(ids) == 1
+
+    def test_filtro_por_role_participant(self, client_manager, criar_usuario):
+        """Filtro role=PARTICIPANT deve retornar apenas participantes."""
+        participant = criar_usuario(email="part@test.com", roles="PARTICIPANT")
+        criar_usuario(email="mgr@test.com", roles="MANAGER")
+
+        resp = client_manager.get("/api/users", params={"role": "PARTICIPANT"})
+
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert participant.id in ids
+        assert len(ids) == 1
+
+    def test_filtro_por_role_manager(self, client_manager, criar_usuario):
+        """Filtro role=MANAGER deve incluir usuários com múltiplos papéis."""
+        criar_usuario(email="part@test.com", roles="PARTICIPANT")
+        manager = criar_usuario(email="mgr@test.com", roles="MANAGER,PARTICIPANT")
+
+        resp = client_manager.get("/api/users", params={"role": "MANAGER"})
+
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert manager.id in ids
+        assert len(ids) == 1
+
+    def test_filtros_status_e_role_combinados(self, client_manager, criar_usuario):
+        """Filtros status e role combinados devem restringir o resultado."""
+        criar_usuario(email="ativo-part@test.com", status="ACTIVE", roles="PARTICIPANT")
+        criar_usuario(email="inativo-part@test.com", status="INACTIVE", roles="PARTICIPANT")
+        alvo = criar_usuario(email="ativo-mgr@test.com", status="ACTIVE", roles="MANAGER")
+
+        resp = client_manager.get(
+            "/api/users",
+            params={"status": "ACTIVE", "role": "MANAGER"},
+        )
+
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert ids == [alvo.id]
+
+    def test_paginacao_page_e_size(self, client_manager, criar_usuario):
+        """Paginação deve respeitar page e size informados."""
+        for i in range(3):
+            criar_usuario(email=f"user{i}@test.com")
+
+        resp = client_manager.get("/api/users", params={"page": 1, "size": 1})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["items"]) == 1
+        assert body["page"]["page"] == 1
+        assert body["page"]["size"] == 1
+        assert body["page"]["totalElements"] == 3
+        assert body["page"]["totalPages"] == 3
+
+    def test_page_invalida_retorna_422(self, client_manager):
+        """page negativa deve retornar 422."""
+        resp = client_manager.get("/api/users", params={"page": -1})
+
+        assert resp.status_code == 422
+
+    def test_size_invalido_retorna_422(self, client_manager):
+        """size fora do intervalo permitido deve retornar 422."""
+        resp_zero = client_manager.get("/api/users", params={"size": 0})
+        resp_grande = client_manager.get("/api/users", params={"size": 101})
+
+        assert resp_zero.status_code == 422
+        assert resp_grande.status_code == 422
 
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
