@@ -45,9 +45,33 @@ class TestAutorizacaoPostUsers:
 
 
 # ─── GET /users ──────────────────────────────────────────────────────────────
-# Verificar acesso de MANAGER.
-# Verificar restrição para PARTICIPANT.
-# Verificar se tem outras questões de autorização no doc API
+class TestAutorizacaoGetUsers:
+
+    def test_sem_token_retorna_401(self, client, criar_usuario):
+        """GET /users sem Authorization header deve retornar 401."""
+        criar_usuario()
+
+        resp = client.get("/api/users")
+
+        assert resp.status_code == 401
+
+    def test_manager_pode_listar_usuarios(self, client_manager, criar_usuario):
+        """MANAGER tem acesso à listagem de usuários."""
+        criar_usuario(email="listado@test.com")
+
+        resp = client_manager.get("/api/users")
+
+        assert resp.status_code == 200
+
+    def test_participant_nao_pode_listar_usuarios_retorna_403(
+        self, client_participant, criar_usuario
+    ):
+        """PARTICIPANT não pode listar usuários — deve retornar 403."""
+        criar_usuario(email="listado@test.com")
+
+        resp = client_participant.get("/api/users")
+
+        assert resp.status_code == 403
 
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────

@@ -134,7 +134,71 @@ class TestCriacaoDeUsuario:
         s.repository.cria_usuario.assert_called_once()
 
 # ─── GET /users ──────────────────────────────────────────────────────────────
-# Testes unitários relacionados a filtros, paginação e permissões.
+class TestListaUsuariosUnitario:
+
+    def test_listagem_vazia_retorna_pagina_sem_itens(self):
+        """Quando não há usuários, deve retornar items vazio e totalElements 0."""
+        s = _servico()
+        s.repository.lista_usuarios.return_value = ([], 0)
+
+        resultado = s.lista_de_usuarios(MagicMock())
+
+        assert resultado.items == []
+        assert resultado.page.page == 0
+        assert resultado.page.size == 20
+        assert resultado.page.totalElements == 0
+        assert resultado.page.totalPages == 0
+
+    def test_listagem_retorna_usuarios_com_metadados_de_pagina(self):
+        """Usuários retornados pelo repositório devem ser convertidos para UserPage."""
+        from datetime import datetime, timezone
+
+        s = _servico()
+        mock_user = _usuario_mock()
+        mock_user.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        mock_user.updated_at = None
+        mock_user.deactivated_at = None
+        s.repository.lista_usuarios.return_value = ([mock_user], 1)
+
+        resultado = s.lista_de_usuarios(MagicMock(), page=0, size=20)
+
+        assert len(resultado.items) == 1
+        assert resultado.items[0].id == "usr_abc123"
+        assert resultado.items[0].email == "test@test.com"
+        assert resultado.page.totalElements == 1
+        assert resultado.page.totalPages == 1
+
+    def test_total_pages_calculado_corretamente(self):
+        """totalPages deve ser ceil(total / size)."""
+        s = _servico()
+        s.repository.lista_usuarios.return_value = ([], 25)
+
+        resultado = s.lista_de_usuarios(MagicMock(), page=0, size=10)
+
+        assert resultado.page.totalElements == 25
+        assert resultado.page.totalPages == 3
+
+    def test_repassa_filtros_e_paginacao_ao_repositorio(self):
+        """status, role, page e size devem ser repassados ao repositório."""
+        s = _servico()
+        s.repository.lista_usuarios.return_value = ([], 0)
+        db = MagicMock()
+
+        s.lista_de_usuarios(
+            db,
+            status="ACTIVE",
+            role="MANAGER",
+            page=2,
+            size=5,
+        )
+
+        s.repository.lista_usuarios.assert_called_once_with(
+            db,
+            status="ACTIVE",
+            role="MANAGER",
+            page=2,
+            size=5,
+        )
 
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
