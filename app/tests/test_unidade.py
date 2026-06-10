@@ -16,11 +16,12 @@ Exemplos de responsabilidades:
 import pytest
 from unittest.mock import MagicMock
 from fastapi import HTTPException
-
 from app.services.user_service import UserService
 from app.schemas.user_schema import UserCreate
 
+
 # ─── Helpers internos ─────────────────────────────────────────────────────────
+
 def _servico():
     """Cria UserService com todas as dependências externas mockadas."""
     s = UserService()
@@ -29,6 +30,8 @@ def _servico():
     s.publisher = MagicMock()
     return s
 
+# Endpoint: POST /users
+# Testes unitários relacionados à criação de usuários.
 
 def _usuario_mock(
     user_id="usr_abc123",
@@ -45,6 +48,14 @@ def _usuario_mock(
     u.status = status
     u.roles = roles
     return u
+
+
+
+
+# ------------------------------------------------------
+# CRIACAO DE TESTES UNITÁRIOS PARA OUTROS ENDPOINTS
+# ------------------------------------------------------
+
 
 # ─── POST /users ─────────────────────────────────────────────────────────────
 class TestCriacaoDeUsuario:
@@ -225,5 +236,130 @@ class TestDesativarUsuario:
             "usr_abc123", "Motivo do evento"
         )
 
+
+
 # ─── PUT /users/{userId}/roles ───────────────────────────────────────────────────
-# Testes unitários relacionados à substituição de papéis.
+class TestAtualizaPapeisUsuario:
+    
+    # --- Casos de sucesso ---
+
+    def test_substitui_role_para_manager(self):
+        service = _servico()
+        user = _usuario_mock(roles="PARTICIPANT")
+        service.repository.busca_usuario_por_id.return_value = user
+        service.repository.busca_usuario_por_email.return_value = None
+        service.repository.atualiza_papeis_usuario.return_value = user
+
+        resultado = service.atualiza_papeis_usuario(
+            db=MagicMock(),
+            user_id="usr_123",
+            roles=["MANAGER"],
+            current_user={"sub": "usr_outro", "email": "outro@facom.ufms.br"},
+        )
+
+        service.repository.atualiza_papeis_usuario.assert_called_once()
+        assert resultado == user
+
+    def test_substitui_role_para_participant(self):
+        """Manager pode rebaixar outro manager para PARTICIPANT."""
+        service = _servico()
+        user = _usuario_mock(roles="MANAGER")
+        service.repository.busca_usuario_por_id.return_value = user
+        service.repository.busca_usuario_por_email.return_value = None
+        service.repository.atualiza_papeis_usuario.return_value = user
+
+        resultado = service.atualiza_papeis_usuario(
+            db=MagicMock(),
+            user_id="usr_123",
+            roles=["PARTICIPANT"],
+            current_user={"sub": "usr_outro", "email": "outro@facom.ufms.br"},
+        )
+
+        service.repository.atualiza_papeis_usuario.assert_called_once()
+        assert resultado == user
+
+    def test_sincroniza_roles_no_keycloak(self):
+        """Após atualizar no banco, deve sincronizar no Keycloak."""
+        service = _servico()
+        user = _usuario_mock()
+        service.repository.busca_usuario_por_id.return_value = user
+        service.repository.atualiza_papeis_usuario.return_value = user
+
+        service.atualiza_papeis_usuario(
+            db=MagicMock(),
+            user_id="usr_123",
+            roles=["MANAGER"],
+            current_user={"sub": "usr_outro", "email": "outro@facom.ufms.br"},
+        )
+
+        service.keycloak.update_roles.assert_called_once_with(
+            user.email, ["MANAGER"]
+        )
+
+    def test_retorna_usuario_atualizado(self):
+        """Deve retornar o objeto do usuário após atualização."""
+        service = _servico()
+        user = _usuario_mock()
+        service.repository.busca_usuario_por_id.return_value = user
+        service.repository.atualiza_papeis_usuario.return_value = user
+
+        resultado = service.atualiza_papeis_usuario(
+            db=MagicMock(),
+            user_id="usr_123",
+            roles=["PARTICIPANT"],
+            current_user={"sub": "usr_outro", "email": "outro@facom.ufms.br"},
+        )
+
+        assert resultado is user
+
+    # --- Casos de erro ---
+
+    def test_usuario_nao_encontrado_retorna_404(self):
+        """Deve retornar 404 se o usuário não existir no banco."""
+        service = _servico()
+        service.repository.busca_usuario_por_email.return_value = None
+        service.repository.busca_usuario_por_id.return_value = None
+
+        with pytest.raises(HTTPException) as exc:
+            service.atualiza_papeis_usuario(
+                db=MagicMock(),
+                user_id="usr_inexistente",
+                roles=["MANAGER"],
+                current_user={"sub": "usr_outro", "email": "outro@facom.ufms.br"},
+            )
+
+        assert exc.value.status_code == 404
+
+    def test_manager_nao_pode_remover_proprio_role(self):
+        service = _servico()
+        user = _usuario_mock(user_id="usr_manager", email="manager@facom.ufms.br", roles="MANAGER")
+        service.repository.busca_usuario_por_id.return_value = user
+        service.repository.busca_usuario_por_email.return_value = user
+
+        with pytest.raises(HTTPException) as exc:
+            service.atualiza_papeis_usuario(
+                db=MagicMock(),
+                user_id="usr_manager",
+                roles=["PARTICIPANT"],
+                current_user={"sub": "usr_manager", "email": "manager@facom.ufms.br"},
+            )
+
+        assert exc.value.status_code == 403
+
+    def test_falha_no_keycloak_nao_desfaz_banco(self):
+        """Se o Keycloak falhar, o banco já foi atualizado e não deve ser desfeito."""
+        service = _servico()
+        user = _usuario_mock()
+        service.repository.busca_usuario_por_id.return_value = user
+        service.repository.atualiza_papeis_usuario.return_value = user
+        service.keycloak.update_roles.side_effect = Exception("Keycloak fora do ar")
+
+        resultado = service.atualiza_papeis_usuario(
+            db=MagicMock(),
+            user_id="usr_123",
+            roles=["MANAGER"],
+            current_user={"sub": "usr_outro", "email": "outro@facom.ufms.br"},
+        )
+
+        service.repository.atualiza_papeis_usuario.assert_called_once()
+        assert resultado is user

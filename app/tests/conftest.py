@@ -43,6 +43,7 @@ from app.core.database import Base, get_db
 from app.core.security import get_current_user
 from app.models.user_model import User, gerar_id
 
+
 # ---------------------------------------------------------------------------
 # Banco de dados de testes.
 #
@@ -182,6 +183,21 @@ def client_participant(db):
 
     app.dependency_overrides.clear()
 
+@pytest.fixture
+def client_sem_token(db):
+    """
+    Cliente sem autenticação.
+
+    Simula requisições onde o token JWT está ausente ou inválido,
+    permitindo testar respostas de erro e restrições de acesso.
+    """
+    app.dependency_overrides[get_db] = _override_db(db)
+    app.dependency_overrides.pop(get_current_user, None)
+
+    with patch(_PATCHES[0]), patch(_PATCHES[1]), patch(_PATCHES[2]), patch(_PATCHES[3]):
+        yield TestClient(app, raise_server_exceptions=True)
+
+    app.dependency_overrides.clear()
 
 # ===========================================================================
 # FIXTURE FÁBRICA DE USUÁRIOS
