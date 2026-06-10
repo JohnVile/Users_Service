@@ -38,7 +38,15 @@ def lista_usuarios(
     )
 
 
-# @router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse)
+def obter_usuario(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_self_or_manager),
+):
+    """Busca usuário por ID. MANAGER pode consultar qualquer usuário; PARTICIPANT apenas o próprio."""
+    return UserService().obter_usuario(db, user_id, current_user)
+
 
 @router.patch("/{user_id}", response_model=UserResponse)
 def atualizar_usuario(

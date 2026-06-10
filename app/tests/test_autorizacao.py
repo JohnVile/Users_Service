@@ -51,9 +51,43 @@ class TestAutorizacaoPostUsers:
 
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
-# Verificar acesso ao próprio usuário.
-# Verificar acesso a usuários de terceiros.
-# Verificar se tem outras questões de autorização no doc API
+class TestAutorizacaoGetUser:
+
+    def test_sem_token_retorna_401(self, client, criar_usuario):
+        """GET sem Authorization header deve retornar 401."""
+        usuario = criar_usuario()
+
+        resp = client.get(f"/api/users/{usuario.id}")
+
+        assert resp.status_code == 401
+
+    def test_manager_pode_buscar_qualquer_usuario(self, client_manager, criar_usuario):
+        """MANAGER tem acesso irrestrito: pode consultar qualquer usuário."""
+        usuario = criar_usuario(email="terceiro@test.com")
+
+        resp = client_manager.get(f"/api/users/{usuario.id}")
+
+        assert resp.status_code == 200
+
+    def test_participant_pode_buscar_o_proprio_usuario(
+        self, client_participant, criar_usuario
+    ):
+        """PARTICIPANT pode consultar somente sua própria conta."""
+        usuario = criar_usuario(email="participant@test.com")
+
+        resp = client_participant.get(f"/api/users/{usuario.id}")
+
+        assert resp.status_code == 200
+
+    def test_participant_nao_pode_buscar_usuario_de_terceiro_retorna_403(
+        self, client_participant, criar_usuario
+    ):
+        """PARTICIPANT não pode consultar conta de outro usuário → deve retornar 403."""
+        usuario = criar_usuario(email="outro@test.com")
+
+        resp = client_participant.get(f"/api/users/{usuario.id}")
+
+        assert resp.status_code == 403
 
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────

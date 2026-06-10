@@ -138,7 +138,68 @@ class TestCriacaoDeUsuario:
 
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
-# Testes unitários relacionados à busca de usuário.
+class TestObterUsuarioUnitario:
+
+    def test_retorna_usuario_quando_id_existe(self):
+        """Busca por ID válido deve retornar o usuário do repositório."""
+        s = _servico()
+        current_user = {"email": "manager@test.com", "roles": ["MANAGER"]}
+        mock_user = _usuario_mock()
+
+        s.repository.busca_usuario_por_id.return_value = mock_user
+
+        resultado = s.obter_usuario(MagicMock(), "usr_abc123", current_user)
+
+        assert resultado == mock_user
+        s.repository.busca_usuario_por_id.assert_called_once()
+
+    def test_usuario_inexistente_lanca_404(self):
+        """ID inexistente deve lançar HTTPException 404."""
+        s = _servico()
+        current_user = {"email": "manager@test.com", "roles": ["MANAGER"]}
+        s.repository.busca_usuario_por_id.return_value = None
+
+        with pytest.raises(HTTPException) as exc:
+            s.obter_usuario(MagicMock(), "usr_naoexiste", current_user)
+
+        assert exc.value.status_code == 404
+
+    def test_manager_pode_buscar_qualquer_usuario(self):
+        """MANAGER pode consultar usuários com e-mail diferente do seu."""
+        s = _servico()
+        current_user = {"email": "manager@test.com", "roles": ["MANAGER"]}
+        mock_user = _usuario_mock(email="outro@test.com")
+
+        s.repository.busca_usuario_por_id.return_value = mock_user
+
+        resultado = s.obter_usuario(MagicMock(), "usr_outro", current_user)
+
+        assert resultado == mock_user
+
+    def test_participant_pode_buscar_a_propria_conta(self):
+        """PARTICIPANT pode consultar quando o e-mail do token bate com o do usuário alvo."""
+        s = _servico()
+        current_user = {"email": "participant@test.com", "roles": ["PARTICIPANT"]}
+        mock_user = _usuario_mock(email="participant@test.com")
+
+        s.repository.busca_usuario_por_id.return_value = mock_user
+
+        resultado = s.obter_usuario(MagicMock(), "usr_part", current_user)
+
+        assert resultado == mock_user
+
+    def test_participant_nao_pode_buscar_conta_de_outro_lanca_403(self):
+        """PARTICIPANT tentando consultar outro usuário deve receber HTTPException 403."""
+        s = _servico()
+        current_user = {"email": "participant@test.com", "roles": ["PARTICIPANT"]}
+        mock_user = _usuario_mock(email="outro@test.com")
+
+        s.repository.busca_usuario_por_id.return_value = mock_user
+
+        with pytest.raises(HTTPException) as exc:
+            s.obter_usuario(MagicMock(), "usr_outro", current_user)
+
+        assert exc.value.status_code == 403
 
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────

@@ -102,7 +102,41 @@ class TestPostUsers:
 
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
-# Testar busca de usuário por identificador.
+class TestGetUsuarioIntegracao:
+
+    def test_manager_busca_usuario_retorna_200_e_dados_corretos(
+        self, client_manager, criar_usuario
+    ):
+        """MANAGER consultando usuário existente deve retornar 200 com os dados completos."""
+        usuario = criar_usuario(name="Maria Silva", email="maria@test.com")
+
+        resp = client_manager.get(f"/api/users/{usuario.id}")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == usuario.id
+        assert body["name"] == "Maria Silva"
+        assert body["email"] == "maria@test.com"
+        assert body["status"] == "ACTIVE"
+        assert body["roles"] == ["PARTICIPANT"]
+        assert "createdAt" in body
+
+    def test_participant_busca_propria_conta_retorna_200(
+        self, client_participant, criar_usuario
+    ):
+        """PARTICIPANT consultando a própria conta deve retornar 200."""
+        usuario = criar_usuario(email="participant@test.com", name="Eu Mesmo")
+
+        resp = client_participant.get(f"/api/users/{usuario.id}")
+
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "participant@test.com"
+
+    def test_id_inexistente_retorna_404(self, client_manager):
+        """Consulta por ID que não existe deve retornar 404."""
+        resp = client_manager.get("/api/users/usr_inexistente")
+
+        assert resp.status_code == 404
 
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────
