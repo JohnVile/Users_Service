@@ -26,15 +26,15 @@ Desenvolvido com Python + FastAPI + PostgreSQL + Docker.
 * Instale via terminal o Curl para uso de testes da API (Windows): `winget install cURL.cURL`
 * Baixe o DBheaver para visualizar o banco PostgreSQL (<https://dbeaver.io/download/>)
 
-##### Configurações do DBeaver:
+### Configurações do DBeaver
 
 | Campo | Valor |
-|--------|--------|
+| -------- | -------- |
 | Host | localhost |
 | Porta | 5432 |
 | Database | `users_db` |
 | Usuário | `admin` |
-| Senha | `admin`
+| Senha | `admin` |
 
 ## 1. Suba a infra do professor
 
@@ -75,7 +75,35 @@ A API fica disponível em:
 
 ---
 
-## 3. Testes para a criação de usuário - `POST /users`
+## 2.1 Como rodar os testes automatizados?
+
+Dentro de Users_Service/
+
+```bash
+python -m pytest -v
+```
+
+Com relatório de cobertura:
+
+```bash
+python -m pytest -v --cov=app --cov-report=term-missing
+```
+
+Gerar evidência em arquivo:
+
+```bash
+python -m pytest -v > resultados_testes.txt 2>&1
+```
+
+Gerar evidência em HTML:
+
+```bash
+python -m pytest --html=relatorio.html
+```
+
+---
+
+## 3. Testes manuais para a criação de usuário - `POST /users`
 
 ⚠️ Atenção: É possível testar usando o Git Bash ou o WSL
 
@@ -106,13 +134,11 @@ Envie o mesmo e-mail duas vezes. Resposta esperada: `409 Conflict`.
 
 ---
 
-## 4. Obtendo token para testar outros endpoints
- 
 ## 4. Obtendo token para testar endpoints protegidos
 
 Todos os endpoints (exceto `POST /users`) exigem um token JWT no header:
 
-```
+```text
 Authorization: Bearer <access_token>
 ```
 
@@ -141,6 +167,7 @@ TOKEN="<cole o access_token aqui>"
 #### Token de usuário PARTICIPANT (para testar controle de acesso)
 
 Após criar um usuário via `POST /users`, acesse o painel do Keycloak:
+
 1. Abra <http://localhost:8080> → Login: `facoffee` / `facoffee`
 2. Selecione o realm **facoffee** (não o master)
 3. Vá em **Users** → clique no usuário criado → aba **Credentials**
@@ -253,7 +280,6 @@ Resposta esperada: `404 Not Found`
 
 ## 7. Testes para atualizar nome do usuário — `PATCH /users/{userId}`
 
-
 ```bash
 USER_ID="usr_a1b2c3d4e5f6"
 
@@ -277,9 +303,11 @@ curl -X PUT "http://localhost:8000/api/users/$USER_ID/roles" \
   -H "Content-Type: application/json" \
   -d '{"roles": ["MANAGER"]}'
 ```
+
 Resposta esperada: `200 OK` com os dados atualizados.
 
 Após o comando, verifique no painel do Keycloak:
+
 1. <http://localhost:8080> → realm `facoffee` → **Users** → [usuário] → aba **Role mappings**
 2. A role `MANAGER` deve aparecer em **Assigned roles**
 
@@ -315,16 +343,16 @@ Resposta esperada: `409 Conflict`
 
 ## 10. Variáveis de ambiente
 
-| Variável                  | Descrição                              | Padrão                        |
-|---------------------------|----------------------------------------|-------------------------------|
-| `DATABASE_URL`            | URL de conexão PostgreSQL              | `postgresql://admin:admin@db:5432/users_db` |
-| `KEYCLOAK_URL`            | URL base do Keycloak                   | `http://host.docker.internal:8080` |
-| `KEYCLOAK_REALM`          | Realm da aplicação                     | `facoffee`                    |
-| `KEYCLOAK_CLIENT_ID`      | Client ID confidencial                 | `facoffee-private`            |
-| `KEYCLOAK_CLIENT_SECRET`  | Secret do client confidencial          | `facoffee-private-secret`     |
-| `KEYCLOAK_ADMIN_USER`     | Usuário admin do Keycloak              | `facoffee`                    |
-| `KEYCLOAK_ADMIN_PASSWORD` | Senha admin do Keycloak                | `facoffee`                    |
-| `RABBITMQ_HOST`           | Host do RabbitMQ                       | `host.docker.internal`        |
-| `RABBITMQ_PORT`           | Porta AMQP do RabbitMQ                 | `5672`                        |
-| `RABBITMQ_USER`           | Usuário do RabbitMQ                    | `facoffee`                    |
-| `RABBITMQ_PASSWORD`       | Senha do RabbitMQ                      | `facoffee`                    |
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `DATABASE_URL` | URL de conexão PostgreSQL | `postgresql://admin:admin@db:5432/users_db` |
+| `KEYCLOAK_URL` | URL base do Keycloak | `http://host.docker.internal:8080` |
+| `KEYCLOAK_REALM` | Realm da aplicação | `facoffee` |
+| `KEYCLOAK_CLIENT_ID` | Client ID confidencial | `facoffee-private` |
+| `KEYCLOAK_CLIENT_SECRET` | Secret do client confidencial | `facoffee-private-secret` |
+| `KEYCLOAK_ADMIN_USER` | Usuário admin do Keycloak | `facoffee` |
+| `KEYCLOAK_ADMIN_PASSWORD` | Senha admin do Keycloak | `facoffee` |
+| `RABBITMQ_HOST` | Host do RabbitMQ | `host.docker.internal` |
+| `RABBITMQ_PORT` | Porta AMQP do RabbitMQ | `5672` |
+| `RABBITMQ_USER` | Usuário do RabbitMQ | `facoffee` |
+| `RABBITMQ_PASSWORD` | Senha do RabbitMQ | `facoffee` |

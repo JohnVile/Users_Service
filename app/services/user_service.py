@@ -9,6 +9,8 @@ from app.integrations.rabbitmq_client import RabbitMQClient
 from app.repositories.user_repository import UserRepository
 from app.schemas.user_schema import PageMetadata, UserPage, UserResponse, UserUpdate
 
+import logging
+logger = logging.getLogger(__name__)
 
 class UserService:
 
@@ -50,7 +52,7 @@ class UserService:
         try:
             self.keycloak.create_user(user_data.model_dump())
         except Exception as e:
-            print(f"[Keycloak] Falha ao criar usuário: {e}")
+            logger.warning(f"[Keycloak] Falha ao criar usuário: {e}")
 
         return usuario_criado
 
@@ -124,7 +126,7 @@ class UserService:
         try:
             self.keycloak.disable_user(usuario.email)
         except Exception as e:
-            print(f"[Keycloak] Falha ao desabilitar usuário: {e}")
+            logger.warning(f"[Keycloak] Falha ao desabilitar usuário: {e}")
 
         # Publica evento com envelope completo (async-docs.yaml)
         self.publisher.publish_user_deactivated(user_id, reason)
@@ -166,6 +168,6 @@ class UserService:
         try:
             self.keycloak.update_roles(usuario.email, roles)
         except Exception as e:
-            print(f"[Keycloak] Falha ao atualizar papéis: {e}")
+            logger.warning(f"[Keycloak] Falha ao atualizar papéis: {e}")
 
         return usuario_atualizado

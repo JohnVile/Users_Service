@@ -8,9 +8,13 @@ class UserRepository:
     def cria_usuario(self, db: Session, user_data):
         user = User(**user_data)
         db.add(user)
-        db.commit()
-        db.refresh(user)
-        return user
+        try:
+            db.commit()
+            db.refresh(user)
+            return user
+        except Exception:
+            db.rollback()
+            raise
 
     def busca_usuario_por_email(self, db: Session, email: str):
         return db.query(User).filter(User.email == email).first()
@@ -54,13 +58,21 @@ class UserRepository:
     def atualiza_dados_do_usuario(self, db: Session, user, data):
         for key, value in data.items():
             setattr(user, key, value)
-        db.commit()
-        db.refresh(user)
-        return user
+        try:
+            db.commit()
+            db.refresh(user)
+            return user
+        except Exception:
+            db.rollback()
+            raise
 
     def atualiza_papeis_usuario(self, db: Session, user, roles: list[str]):
         user.roles = ",".join(roles)
-        db.commit()
-        db.refresh(user)
-        return user
+        try:
+            db.commit()
+            db.refresh(user)
+            return user
+        except Exception:
+            db.rollback()
+            raise
     
