@@ -1,6 +1,6 @@
 # Users Service — FACOFFEE
 
-Microserviço de usuários da plataforma FACOFFEE.
+Microsserviço de usuários da plataforma FACOFFEE.
 Desenvolvido com Python + FastAPI + PostgreSQL + Docker.
 
 ## Equipe
