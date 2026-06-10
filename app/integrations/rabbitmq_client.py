@@ -2,10 +2,11 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-import pika
-
+import pika 
 from app.core.config import settings
 
+import logging
+logger = logging.getLogger(__name__)
 
 class RabbitMQClient:
     """
@@ -71,4 +72,4 @@ class RabbitMQClient:
             connection.close()
         except Exception as e:
             # Não bloqueia o fluxo principal se o RabbitMQ estiver offline
-            print(f"[RabbitMQ] Falha ao publicar evento UserDeactivated: {e}")
+            logger.warning(f"[RabbitMQ] Falha ao publicar evento UserDeactivated: {e}")

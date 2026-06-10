@@ -18,13 +18,12 @@ from app.services.user_service import UserService
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.post("/", status_code=201, response_model=UserResponse)
+@router.post("", status_code=201, response_model=UserResponse)
 def cria_usuario(data: UserCreate, db: Session = Depends(get_db)):
     """Cria usuário no domínio e no Keycloak. Endpoint público (sem token)."""
     return UserService().criacao_de_usuario(db, data)
 
-
-@router.get("/", response_model=UserPage)
+@router.get("", response_model=UserPage)
 def lista_usuarios(
     status: Optional[Literal["ACTIVE", "INACTIVE"]] = Query(None),
     role: Optional[Literal["MANAGER", "PARTICIPANT"]] = Query(None),
