@@ -84,7 +84,110 @@ class TestPostUsers:
 
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────
-# Testar atualização completa de usuário.
+class TestPatchUsuarioIntegracao:
+ 
+    # ── 200 OK ─────────────────────────────────────────────────────────────
+ 
+    def test_manager_atualiza_nome_retorna_200_e_novo_nome(
+        self, client_manager, criar_usuario
+    ):
+        """MANAGER atualizando name de outro usuário deve retornar 200 com novo nome."""
+        usuario = criar_usuario(name="Nome Antigo", email="alvo@test.com")
+ 
+        resp = client_manager.patch(
+            f"/api/users/{usuario.id}", json={"name": "Nome Novo"}
+        )
+ 
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Nome Novo"
+        assert body["id"] == usuario.id
+ 
+    def test_participant_atualiza_propria_conta_retorna_200(
+        self, client_participant, criar_usuario
+    ):
+
+        usuario = criar_usuario(email="participant@test.com", name="Velho Nome")
+ 
+        resp = client_participant.patch(
+            f"/api/users/{usuario.id}", json={"name": "Novo Nome"}
+        )
+ 
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "Novo Nome"
+ 
+    def test_patch_sem_campos_retorna_200_sem_alterar_dados(
+        self, client_manager, criar_usuario
+    ):
+        """Corpo vazio ({}) deve retornar 200 com os dados originais intactos."""
+        usuario = criar_usuario(name="Nome Original", email="original@test.com")
+ 
+        resp = client_manager.patch(f"/api/users/{usuario.id}", json={})
+ 
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "Nome Original"
+ 
+    def test_resposta_contem_todos_os_campos_do_contrato(
+        self, client_manager, criar_usuario
+    ):
+        """A resposta deve conter id, name, email, status, roles, createdAt."""
+        usuario = criar_usuario(email="contrato@test.com")
+ 
+        resp = client_manager.patch(
+            f"/api/users/{usuario.id}", json={"name": "Nome Contrato"}
+        )
+ 
+        body = resp.json()
+        for campo in ("id", "name", "email", "status", "roles", "createdAt"):
+            assert campo in body, f"Campo '{campo}' ausente na resposta"
+ 
+    # ── 404 ────────────────────────────────────────────────────────────────
+ 
+    def test_usuario_inexistente_retorna_404(self, client_manager):
+        """PATCH em ID que não existe deve retornar 404."""
+        resp = client_manager.patch(
+            "/api/users/usr_naoexiste", json={"name": "Não existe"}
+        )
+ 
+        assert resp.status_code == 404
+ 
+    # ── 422 Unprocessable Entity ───────────────────────────────────────────
+ 
+    def test_name_com_menos_de_3_chars_retorna_422(self, client_manager, criar_usuario):
+        """name com menos de 3 caracteres deve falhar na validação Pydantic (422)."""
+        usuario = criar_usuario(email="val@test.com")
+ 
+        resp = client_manager.patch(f"/api/users/{usuario.id}", json={"name": "AB"})
+ 
+        assert resp.status_code == 422
+ 
+    def test_campo_desconhecido_e_ignorado_retorna_200(
+        self, client_manager, criar_usuario
+    ):
+
+        usuario = criar_usuario(email="extra@test.com")
+ 
+        resp = client_manager.patch(
+            f"/api/users/{usuario.id}",
+            json={"name": "Nome Ok", "campo_inventado": "valor"},
+        )
+ 
+        # Pydantic ignora campos extras — deve passar normalmente
+        assert resp.status_code == 200
+ 
+    # ── Persistência ───────────────────────────────────────────────────────
+ 
+    def test_alteracao_e_persistida_no_banco(self, client_manager, criar_usuario, db):
+        """O novo nome deve estar gravado no banco após o PATCH."""
+        from app.models.user_model import User
+ 
+        usuario = criar_usuario(email="persist@test.com", name="Antes")
+ 
+        client_manager.patch(f"/api/users/{usuario.id}", json={"name": "Depois"})
+ 
+        db.expire_all()
+        user_db = db.query(User).filter(User.id == usuario.id).first()
+        assert user_db.name == "Depois"
 
 
 # ─── DELETE /users/{userId} ───────────────────────────────────────────────────

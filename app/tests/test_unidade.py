@@ -19,6 +19,7 @@ from fastapi import HTTPException
 
 from app.services.user_service import UserService
 from app.schemas.user_schema import UserCreate
+from app.schemas.user_schema import UserUpdate
 
 # ─── Helpers internos ─────────────────────────────────────────────────────────
 def _servico():
@@ -130,7 +131,89 @@ class TestCriacaoDeUsuario:
 
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────
-# Testes unitários relacionados à atualização de dados.
+class TestAtualizarDadosUsuarioUnitario:
+ 
+    # ── Caminho feliz ──────────────────────────────────────────────────────
+ 
+    def test_atualiza_nome_com_sucesso(self):
+        """Atualizar name com dado válido deve chamar o repositório e retornar o usuário."""
+        s = _servico()
+        current_user = {"email": "test@test.com", "roles": ["PARTICIPANT"]}
+        mock_user = _usuario_mock()
+        mock_atualizado = _usuario_mock(name="Novo Nome")
+ 
+        s.repository.busca_usuario_por_id.return_value = mock_user
+        s.repository.atualiza_dados_do_usuario.return_value = mock_atualizado
+ 
+        resultado = s.atualizar_dados_usuario(
+            MagicMock(), "usr_abc123", UserUpdate(name="Novo Nome"), current_user
+        )
+ 
+        assert resultado.name == "Novo Nome"
+        s.repository.atualiza_dados_do_usuario.assert_called_once()
+ 
+    def test_payload_vazio_retorna_usuario_sem_alteracoes(self):
+        """
+        Se UserUpdate não tiver nenhum campo preenchido (todos None),
+        o repositório NÃO deve ser chamado e o usuário original é retornado.
+        """
+        s = _servico()
+        current_user = {"email": "test@test.com", "roles": ["PARTICIPANT"]}
+        mock_user = _usuario_mock()
+ 
+        s.repository.busca_usuario_por_id.return_value = mock_user
+ 
+        resultado = s.atualizar_dados_usuario(
+            MagicMock(), "usr_abc123", UserUpdate(), current_user
+        )
+ 
+        assert resultado == mock_user
+        s.repository.atualiza_dados_do_usuario.assert_not_called()
+ 
+    # ── 404 ────────────────────────────────────────────────────────────────
+ 
+    def test_usuario_inexistente_lanca_404(self):
+        """Tentar atualizar ID que não existe deve lançar HTTPException 404."""
+        s = _servico()
+        current_user = {"email": "manager@test.com", "roles": ["MANAGER"]}
+        s.repository.busca_usuario_por_id.return_value = None
+ 
+        with pytest.raises(HTTPException) as exc:
+            s.atualizar_dados_usuario(
+                MagicMock(), "usr_naoexiste", UserUpdate(name="Qualquer"), current_user
+            )
+ 
+        assert exc.value.status_code == 404
+ 
+    # ── Validação de schema ────────────────────────────────────────────────
+ 
+    def test_name_com_menos_de_3_chars_invalido_no_schema(self):
+        """UserUpdate com name menor que 3 caracteres deve levantar ValidationError."""
+        from pydantic import ValidationError
+ 
+        with pytest.raises(ValidationError):
+            UserUpdate(name="AB")
+ 
+    def test_apenas_campos_preenchidos_sao_enviados_ao_repositorio(self):
+        """
+        O dict enviado ao repositório deve conter apenas os campos
+        não-nulos de UserUpdate — atualmente somente 'name'.
+        """
+        s = _servico()
+        current_user = {"email": "test@test.com", "roles": ["PARTICIPANT"]}
+        mock_user = _usuario_mock()
+ 
+        s.repository.busca_usuario_por_id.return_value = mock_user
+        s.repository.atualiza_dados_do_usuario.return_value = mock_user
+ 
+        s.atualizar_dados_usuario(
+            MagicMock(), "usr_abc123", UserUpdate(name="Bom Nome"), current_user
+        )
+ 
+        _, _, kwargs_data = s.repository.atualiza_dados_do_usuario.call_args[0]
+        assert "name" in kwargs_data
+        # Garantir que nenhum campo None vazou
+        assert all(v is not None for v in kwargs_data.values())
 
 
 # ─── DELETE /users/{userId} ───────────────────────────────────────────────────
