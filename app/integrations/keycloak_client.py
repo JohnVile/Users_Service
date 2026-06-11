@@ -48,8 +48,6 @@ class KeycloakClient:
     def issuer(self) -> str:
         config = self.get_oidc_config()
         issuer = config["issuer"]
-        # Tokens obtidos via localhost:8080 trazem iss com localhost, mesmo quando o
-        # serviço acessa o Keycloak via host.docker.internal dentro do container.
         if "host.docker.internal" in issuer:
             return issuer.replace("host.docker.internal", "localhost")
         return issuer

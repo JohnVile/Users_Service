@@ -17,6 +17,15 @@ Desenvolvido com Python + FastAPI + PostgreSQL + Docker.
 * Docker 24+ e Docker Compose v2+
 * A infra do professor (`facoffee-docs`) rodando
 * DBeaver: Para visualizar o banco (Opcional)
+* Instalar dependências: `pip install -r requirements.txt`
+
+---
+
+## URLs importantes para testes
+
+- RabbitMQ: <a href="http://localhost:15672" target="_blank" rel="noopener noreferrer">http://localhost:15672</a>
+
+- Keycloack: <a href="http://localhost:8080" target="_blank" rel="noopener noreferrer">http://localhost:8080</a>
 
 ---
 
@@ -113,7 +122,7 @@ python -m pytest --html=relatorio.html
 
 ## 3. Testes manuais para a criação de usuário - `POST /users`
 
-⚠️ Atenção: É possível testar usando o Git Bash ou o WSL
+⚠️ Recomendação: testar por meio do Git Bash
 
 ### Criar usuário (POST /users — sem token)
 
@@ -332,7 +341,7 @@ USER_ID="usr_a1b2c3d4e5f6"
 curl -X DELETE "http://localhost:8000/api/users/$USER_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"reason": "Usuário não participa mais da copa"}'
+  -d '{"reason": "Usuario nao participa mais da copa"}' 
 ```
 
 Resposta esperada: `200 OK` com `"status": "INACTIVE"` e `"deactivatedAt"` preenchido.

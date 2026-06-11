@@ -31,7 +31,7 @@ def require_manager(current_user: dict = Depends(get_current_user)) -> dict:
 
 
 def require_self_or_manager(
-    user_id: str,  # FastAPI injeta automaticamente do path param {user_id}
+    user_id: str, 
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
