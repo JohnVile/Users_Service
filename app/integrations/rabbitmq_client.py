@@ -13,7 +13,6 @@ class RabbitMQClient:
     Publica eventos de domínio no RabbitMQ.
     Envelope segue o contrato do async-docs.yaml (EventEnvelopeBase).
     """
-
     EXCHANGE = "domain.events"
 
     def _get_channel(self):

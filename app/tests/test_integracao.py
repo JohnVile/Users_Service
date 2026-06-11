@@ -15,24 +15,6 @@ Os testes devem verificar:
 import pytest
 from unittest.mock import patch
 
-
-# =========================================================
-# FIXTURES
-# =========================================================
-
-'''
-@pytest.fixture
-def criar_usuario(setup_db):
-    client = client_manager()
-    with patch("app.services.user_service.KeycloakClient.create_user"):
-        response = client.post("/api/users/", json={
-            "name": "Joao Teste",
-            "email": "joao@facom.ufms.br",
-        })
-    assert response.status_code == 201
-    return response.json()'''
-
-
 # ─── POST /users ─────────────────────────────────────────────────────────────
 class TestPostUsers:
 
