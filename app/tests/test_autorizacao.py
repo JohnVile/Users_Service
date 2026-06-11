@@ -252,9 +252,6 @@ class TestAutorizacaoDeleteUser:
 
 
 # ─── PUT /users/{userId}/roles ───────────────────────────────────────────────
-# Verificar quem pode alterar papéis.
-# Verificar se tem outras questões de autorização no doc API
-
 class TestAutorizacaoAtualizaPapeis:
 
     # --- Acesso PERMITIDO ---

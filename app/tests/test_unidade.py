@@ -50,14 +50,6 @@ def _usuario_mock(
     u.roles = roles
     return u
 
-
-
-
-# ------------------------------------------------------
-# CRIACAO DE TESTES UNITÁRIOS PARA OUTROS ENDPOINTS
-# ------------------------------------------------------
-
-
 # ─── POST /users ─────────────────────────────────────────────────────────────
 class TestCriacaoDeUsuario:
 
@@ -200,7 +192,6 @@ class TestListaUsuariosUnitario:
             size=5,
         )
 
-
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
 class TestObterUsuarioUnitario:
 
@@ -264,7 +255,6 @@ class TestObterUsuarioUnitario:
             s.obter_usuario(MagicMock(), "usr_outro", current_user)
 
         assert exc.value.status_code == 403
-
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────
 class TestAtualizarDadosUsuarioUnitario:
@@ -350,7 +340,6 @@ class TestAtualizarDadosUsuarioUnitario:
         assert "name" in kwargs_data
         # Garantir que nenhum campo None vazou
         assert all(v is not None for v in kwargs_data.values())
-
 
 # ─── DELETE /users/{userId} ───────────────────────────────────────────────────
 class TestDesativarUsuario:
@@ -443,8 +432,6 @@ class TestDesativarUsuario:
         s.publisher.publish_user_deactivated.assert_called_once_with(
             "usr_abc123", "Motivo do evento"
         )
-
-
 
 # ─── PUT /users/{userId}/roles ───────────────────────────────────────────────────
 class TestAtualizaPapeisUsuario:

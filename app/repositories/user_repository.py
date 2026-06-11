@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -68,6 +70,7 @@ class UserRepository:
 
     def atualiza_papeis_usuario(self, db: Session, user, roles: list[str]):
         user.roles = ",".join(roles)
+        user.updated_at = datetime.now(timezone.utc)
         try:
             db.commit()
             db.refresh(user)

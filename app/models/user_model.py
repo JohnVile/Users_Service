@@ -7,7 +7,6 @@ from app.core.database import Base
 def gerar_id():
     return f"usr_{uuid.uuid4().hex[:12]}"
 
-
 class User(Base):
 
     __tablename__ = "users"
@@ -18,5 +17,5 @@ class User(Base):
     status = Column(String, nullable=False, default="ACTIVE")
     roles = Column(String, nullable=False, default="PARTICIPANT")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
     deactivated_at = Column(DateTime(timezone=True), nullable=True)

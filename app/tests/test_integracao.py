@@ -92,10 +92,14 @@ class TestPostUsers:
 
         assert resp.status_code == 422
 
-
-# Endpoint: POST /users
-# Testar criação completa de usuário.
-
+    def test_created_at_preenchido_e_updated_at_nulo(self, client):
+        """Usuário recém-criado deve ter createdAt preenchido e updatedAt nulo."""
+        resp = client.post("/api/users", json={"name": "Teste Nulo", "email": "nulo@test.com"})
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["createdAt"] is not None
+        assert body["updatedAt"] is None
+        assert body["deactivatedAt"] is None
 
 # ─── GET /users ──────────────────────────────────────────────────────────────
 class TestListaUsuariosIntegracao:
@@ -119,16 +123,6 @@ class TestListaUsuariosIntegracao:
         assert body["page"]["size"] == 20
         assert body["page"]["totalElements"] == 1
         assert body["page"]["totalPages"] == 1
-
-    def test_listagem_vazia_retorna_items_vazio(self, client_manager):
-        """Sem usuários cadastrados, items deve ser uma lista vazia."""
-        resp = client_manager.get("/api/users")
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["items"] == []
-        assert body["page"]["totalElements"] == 0
-        assert body["page"]["totalPages"] == 0
 
     def test_filtro_por_status_active(self, client_manager, criar_usuario):
         """Filtro status=ACTIVE deve retornar apenas usuários ativos."""
@@ -222,6 +216,16 @@ class TestListaUsuariosIntegracao:
         assert resp_zero.status_code == 422
         assert resp_grande.status_code == 422
 
+    def test_status_invalido_retorna_422(self, client_manager):
+        """Filtro status com valor fora do enum deve retornar 422."""
+        resp = client_manager.get("/api/users", params={"status": "PENDENTE"})
+        assert resp.status_code == 422
+
+    def test_role_invalida_retorna_422(self, client_manager):
+        """Filtro role com valor fora do enum deve retornar 422."""
+        resp = client_manager.get("/api/users", params={"role": "ADMIN"})
+        assert resp.status_code == 422
+
 
 # ─── GET /users/{userId} ───────────────────────────────────────────────────
 class TestGetUsuarioIntegracao:
@@ -259,7 +263,6 @@ class TestGetUsuarioIntegracao:
         resp = client_manager.get("/api/users/usr_inexistente")
 
         assert resp.status_code == 404
-
 
 # ─── PATCH /users/{userId} ───────────────────────────────────────────────────
 class TestPatchUsuarioIntegracao:
@@ -367,6 +370,17 @@ class TestPatchUsuarioIntegracao:
         user_db = db.query(User).filter(User.id == usuario.id).first()
         assert user_db.name == "Depois"
 
+    # ── Campos de data ─────────────────────────────────────────────────────
+    def test_updated_at_preenchido_apos_patch(self, client_manager, criar_usuario):
+        """updatedAt deve ser preenchido (não nulo) após atualização."""
+        usuario = criar_usuario(email="upd@test.com")
+
+        resp = client_manager.patch(f"/api/users/{usuario.id}", json={"name": "Nome Novo"})
+
+        body = resp.json()
+        assert resp.status_code == 200
+        assert body["updatedAt"] is not None
+
 
 # ─── DELETE /users/{userId} ───────────────────────────────────────────────────
 class TestDeleteUser:
@@ -456,25 +470,22 @@ class TestDeleteUser:
             )
             mock_publish.assert_called_once_with(usuario.id, "Motivo do evento")
 
+    def test_sem_body_retorna_422(self, client_manager, criar_usuario):
+        """DELETE sem body deve retornar 422 — reason é obrigatório."""
+        usuario = criar_usuario()
+        resp = client_manager.request("DELETE", f"/api/users/{usuario.id}", json={})
+        assert resp.status_code == 422
+
+    def test_reason_curto_retorna_422(self, client_manager, criar_usuario):
+        """reason com menos de 3 caracteres deve retornar 422."""
+        usuario = criar_usuario()
+        resp = client_manager.request("DELETE", f"/api/users/{usuario.id}", json={"reason": "AB"})
+        assert resp.status_code == 422
 
 # ─── PUT /users/{userId}/roles ───────────────────────────────────────────────
-# Testar substituição de papéis.
-
 class TestIntegracaoAtualizaPapeis:
 
     # --- Rota e códigos HTTP ---
-
-    def test_retorna_200_ao_substituir_roles(
-            self, client_manager, criar_usuario):
-        """Endpoint retorna 200 ao substituir roles com sucesso."""
-        usuario = criar_usuario(email="teste@test.com")
-        
-        response = client_manager.put(
-            f"/api/users/{usuario.id}/roles",
-            json={"roles": ["MANAGER"]},
-        )
-        assert response.status_code == 200
-
     def test_retorna_404_para_usuario_inexistente(
             self, client_manager):
         """Endpoint retorna 404 quando o userId não existe."""

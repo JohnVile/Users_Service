@@ -38,6 +38,14 @@ Desenvolvido com Python + FastAPI + PostgreSQL + Docker.
 
 ## 1. Suba a infra do professor
 
+Adicione em nginx\default.conf.template (Pós linha 20)
+
+```bash
+proxy_set_header Host "localhost:8080";
+```
+
+Subir Infraestrutura
+
 ```bash
 cd facoffee-docs
 docker compose up -d
@@ -70,7 +78,7 @@ docker compose logs users-service
 A API fica disponível em:
 
 * **Via Gateway (recomendado):** `http://localhost:8000/api/users`
-* **Direto no serviço:** `http://localhost:3001/users`
+* **Direto no serviço:** `http://localhost:3001/api/users`
 * **Swagger:** `http://localhost:3001/docs`
 
 ---
@@ -147,7 +155,7 @@ Authorization: Bearer <access_token>
 #### Token de usuário MANAGER (recomendado para testes)
 
 Usa o usuário pré-configurado no realm `facoffee` com role `MANAGER`.
-**Este é o token a ser usado na maioria dos testes.**
+Este é o token a ser usado na maioria dos testes.
 
 ```bash
 curl -X POST "http://localhost:8080/realms/facoffee/protocol/openid-connect/token" \
@@ -155,7 +163,8 @@ curl -X POST "http://localhost:8080/realms/facoffee/protocol/openid-connect/toke
   -d "grant_type=password" \
   -d "client_id=facoffee-public" \
   -d "username=facoffee@facom.ufms.br" \
-  -d "password=facoffee"
+  -d "password=facoffee" \
+  -d "scope=openid"
 ```
 
 Copie o valor do campo `access_token` da resposta. Exemplo de uso:
@@ -207,8 +216,9 @@ curl -X POST "http://localhost:8080/realms/facoffee/protocol/openid-connect/toke
 Retorna a lista paginada. Requer token de MANAGER.
 
 ```bash
-curl -X GET "http://localhost:8000/api/users" \
-  -H "Authorization: Bearer $TOKEN"
+curl -s -X GET "http://localhost:8000/api/users" \
+  -H "Authorization: Bearer $TOKEN" \
+| python -m json.tool
 ```
 
 Resposta esperada: `200 OK`
@@ -239,8 +249,9 @@ Resposta esperada: `200 OK`
 ### Listar com filtros (status e role)
 
 ```bash
-curl -X GET "http://localhost:8000/api/users?status=ACTIVE&role=PARTICIPANT&page=0&size=10" \
-  -H "Authorization: Bearer $TOKEN"
+curl -s -X GET "http://localhost:8000/api/users?status=ACTIVE&role=PARTICIPANT&page=0&size=10" \
+  -H "Authorization: Bearer $TOKEN" \
+| python -m json.tool
 ```
 
 ### Testar acesso negado de PARTICIPANT ao listar (403)
